@@ -807,16 +807,30 @@ function saveLocal(){ LS.setItem('nc_items',JSON.stringify(S.items)); }
 function loadLocal(){ try{ return JSON.parse(LS.getItem('nc_items')||'[]'); }catch{return[];} }
 
 async function apiCall(action,params={}){
-  const url=new URL(S.url);
-  url.searchParams.set('action',action);
-  for(const[k,v] of Object.entries(params)){
-    if(k==='data') url.searchParams.set('data',encodeURIComponent(JSON.stringify(v)));
-    else url.searchParams.set(k,v);
+  const writeActions=['add','update','delete'];
+  if(writeActions.includes(action)){
+    // POST pour éviter la limite de longueur d'URL (surtout avec les photos base64)
+    const body={action,...params};
+    const r=await fetch(S.url,{
+      method:'POST',
+      headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify(body)
+    });
+    const j=await r.json();
+    if(!j.success) throw new Error(j.error);
+    return j.data;
+  } else {
+    // GET pour les lectures (getAll, ping)
+    const url=new URL(S.url);
+    url.searchParams.set('action',action);
+    for(const[k,v] of Object.entries(params)){
+      url.searchParams.set(k,typeof v==='object'?JSON.stringify(v):v);
+    }
+    const r=await fetch(url.toString());
+    const j=await r.json();
+    if(!j.success) throw new Error(j.error);
+    return j.data;
   }
-  const r=await fetch(url.toString());
-  const j=await r.json();
-  if(!j.success) throw new Error(j.error);
-  return j.data;
 }
 
 async function loadItems(){
